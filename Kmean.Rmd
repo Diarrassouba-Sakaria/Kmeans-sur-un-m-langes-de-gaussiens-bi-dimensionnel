@@ -1,0 +1,226 @@
+---
+title: "Illustration du Kmeans sur un mélanges de gaussiens bi-dimensionnels"
+author: " DIARRASSOUBA Sakaria"
+date: "6 avril 2019"
+output: html_document
+runtime: shiny
+---
+
+$$ \text{DEFINITION}$$
+
+Le partitionnement en k-moyennes (ou k-means en anglais) est une méthode de partitionnement de données et un problème d'optimisation combinatoire. Étant donnés des points et un entier k, le problème est de diviser les points en k groupes, souvent appelés clusters, de façon à minimiser une certaine fonction.
+
+$$ \text {DESCRIPTION DE L'ALGORITHME DU K-MEANS} $$
+$$ \text{Context: On dispose d'un échantillon de taille n  et on souhaite le partitionner en K groupes (K un entier)}$$
+ $$  \text{ALGORITHME}$$
+
+$$ \textbf{algorithme:}k-means  $$  $$ \textbf{Entrées:} X , K $$ $$ \text{ Initialisation: t=0 et m_ ,,,,,m_K  } $$ $$ 4) \textbf{ tant que }\text{pas convergence faire} $$ 
+ 
+
+```{r}
+
+
+
+
+library(shiny)
+
+# Define UI for application that draws a histogram
+ui <- fluidPage(
+   
+   # Application title
+   titlePanel("Kmeans pour la classification de 4 gaussiens bi-dimensionnels"),
+   
+   # Sidebar with a slider input for number of bins 
+   sidebarLayout(
+      sidebarPanel(
+         sliderInput("size",
+                     label="Choisir la taille de l echantillon:",
+                     min = 100,
+                     max = 6000,
+                     value = 1000,
+                     step=100),
+         selectInput("k","choisir le nombre de classes:",choices=c("1","2","3","4","5")),
+         selectInput("option","avec l'option kmeans++?",choices=c("oui","non"))
+      ),
+      
+      # Show a plot of the generated distribution
+      mainPanel(
+         plotOutput("distPlot")
+      )
+   )
+)
+
+# Define server logic required to draw a histogram
+server <- function(input, output) {
+   
+   output$distPlot <- renderPlot({
+     Rnorm<-function(mu,sig){
+  #génère un vecteur gaussien dans R²
+  L=t(chol(sig))
+  G_1=rnorm(1,0,1)
+  G_2=rnorm(1,0,1)
+  G=matrix(data=c(G_1,G_2),nrow=2,ncol=1)
+  N=mu+L%*%G
+  return (N)
+}
+
+rnormix<-function(n,theta){
+  #Génère un mélange de vecteurs gaussiens dans R²
+  K=length(theta$pi)
+  obs=matrix(data=NA,nrow=n,ncol=2)
+  mu=theta$mu
+  sig=theta$sig
+  for(i in 1:n){
+    k=sample(1:K,size=1,prob=theta$pi,replace=T)
+    N=Rnorm(mu[[k]],sig[[k]])
+    obs[i,]=t(N)
+    colnames(obs)<-c("x","y")
+
+  }
+  return(obs)
+  
+} 
+     n<-input$size
+      mu1=matrix(data=c(-2,-1),nrow=2,ncol=1)
+      sig1=matrix(data=c(1,0,0,2),nrow=2,ncol=2)
+      mu2=matrix(data=c(-4,-3),nrow=2,ncol=1)
+      sig2=matrix(data=c(1,0,0,1),nrow=2,ncol=2)
+      mu3=matrix(data=c(0,1),nrow=2,ncol=1)
+      sig3=matrix(data=c(2,1,0,1),nrow=2,ncol=2)
+      mu4=matrix(data=c(4,3),nrow=2,ncol=1)
+      sig4=matrix(data=c(2,0,1,4),nrow=2,ncol=2)
+      mu5=matrix(data=c(-3,0),nrow=2,ncol=1)
+      sig5=sig4=matrix(data=c(6,0,1,4),nrow=2,ncol=2)
+      theta=list(pi=c(0.3,0.2,0.2,0.3),mu=list(mu1,mu2,mu3,mu4),sig=list(sig1,sig2,sig3,sig4))
+      obs=rnormix(n,theta)
+      k<-input$k #nombres de classes
+      option<-input$option
+      Kmeans<-function(obs,K){
+        C<-kmeans(obs,K)
+        plot(x=NULL,xlab="x",ylab='y',main="clustering avec les k-means",xlim=c(min(obs[,1]),max(obs[,1])),ylim=c(min(obs[,2]),max(obs[,2])))
+        for(k in 1:K){
+          points(obs[C$cluster==k,][,1],obs[C$cluster==k,][,2],col=k,pch=3)
+          
+        }
+        return(list(C$centers,C$cluster))
+        
+      }
+      
+      D<-function(x,y){
+        
+        return((x[1]-y[1])^2+(x[2]-y[2])^2)
+      }
+     
+      KMEANS<-function(obs,K){
+        if(K==1){
+          iter=0
+          n=dim(obs)[1]
+          indices=sample(1:n,size=K)
+          res=list(Cluster=rep(0,n),Centers=obs[indices,],iter=0)
+          plot(x=NULL,xlab="x",ylab='y',main="clustering avec les k-means",xlim=c(min(obs[,1]),max(obs[,1])),ylim=c(min(obs[,2]),max(obs[,2])))
+          points(obs[,1],obs[,2],col=1,pch=3)
+          return(res)
+          
+        }
+        else{
+          iter=0
+          n=dim(obs)[1]
+          indices=sample(1:n,size=K)
+          res=list(Cluster=rep(0,n),Centers=obs[indices,],iter=0)
+          converted=F
+          while(converted==F){
+            converted=T
+            iter=iter+1
+            Cluster.old=res$Cluster
+            for(i in 1:n){
+              dist=rep(0,K)
+              for(k in 1:K){
+                dist[k]=D(res$Centers[k,],obs[i,])
+              }
+              k<-1
+              Min=dist[k]
+              for(j in 1:K){
+                if(dist[j]<Min){
+                  Min=dist[j]
+                  k=j
+                }
+              }
+              res$Cluster[i]=k
+            }
+            
+            Centers.old=res$Centers
+            Centers.new=res$Centers
+            for(k in 1:K){
+              C=matrix(data=c(0,0),1,2)
+              data=obs[res$Cluster==k,]
+              for(i in dim(data)[1]){
+                C[1,1]=C[1,1]+data[i,1]
+                C[1,2]=C[1,2]+data[i,2]
+              }
+              Centers.new[k,]=C/dim(data)
+            }
+            a<-Cluster.old==res$Cluster
+            for(i in a){
+              if(i==F){
+                converted=F
+              }
+            }
+            if(converted==F){
+              res$Centers=Centers.new
+            }
+            res$iter=iter
+          }
+          plot(x=NULL,xlab="x",ylab='y',main="clustering avec les k-means",xlim=c(min(obs[,1]),max(obs[,1])),ylim=c(min(obs[,2]),max(obs[,2])))
+          for(k in 1:K){
+            points(obs[res$Cluster==k,][,1],obs[res$Cluster==k,][,2],col=k,pch=3)
+          }
+          return(res)
+        }
+        
+        
+      }
+      if(option=='oui'){
+        
+        library(MASS)
+        set.seed(1)
+        ech1=mvrnorm(n=2500,mu1,sig1)#Genere un vecteur gaussien bi-dimensionnel
+        ech2=mvrnorm(n=2500,mu2,sig2)
+        ech3=mvrnorm(n=2500,mu3,sig3)
+        ech4=mvrnorm(n=2500,mu4,sig4)
+        par(mfrow=c(1,2))
+        plot(ech1[,1],ech1[,2],col=1,main="visualisation des donnees des 4 gaussiens
+     simules independamment",xlab="x",ylab="y",xlim=c(-10,10),ylim=c(-10,10))
+        points(ech2[,1],ech2[,2],col=2)
+        points(ech3[,1],ech3[,2],col=3)
+        points(ech4[,1],ech4[,2],col=4)
+        Kmeans(obs,k)
+        
+        
+      }
+      else{
+        library(MASS)
+        set.seed(1)
+        ech1=mvrnorm(n=2500,mu1,sig1)#Genere un vecteur gaussien bi-dimensionnel
+        ech2=mvrnorm(n=2500,mu2,sig2)
+        ech3=mvrnorm(n=2500,mu3,sig3)
+        ech4=mvrnorm(n=2500,mu4,sig4)
+        par(mfrow=c(1,2))
+        plot(ech1[,1],ech1[,2],col=1,main="visualisation des donnees des 4 gaussiens
+     simules independamment",xlab="x",ylab="y",xlim=c(-10,10),ylim=c(-10,10))
+        points(ech2[,1],ech2[,2],col=2)
+        points(ech3[,1],ech3[,2],col=3)
+        points(ech4[,1],ech4[,2],col=4)
+        
+        KMEANS(obs,k)
+        
+        
+      }
+   })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+
+```
+
